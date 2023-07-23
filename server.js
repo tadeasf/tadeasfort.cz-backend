@@ -67,6 +67,7 @@ app.post("/vote/:slug/:vote", async (req, res) => {
       });
     } else {
       await Blog.updateOne({ slug: req.params.slug }, update);
+      post = await Blog.findOne({ slug: req.params.slug }); // find again after update
     }
 
     await post.save();
