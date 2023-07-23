@@ -6,7 +6,26 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: [
+      "http://localhost:8000",
+      "https://localhost:8000",
+      "https://tadeasfort.cz",
+      "http://tadeasfort.cz",
+      "https://www.tadeasfort.cz",
+      "http://www.tadeasfort.cz",
+      "https://tadeasfort.cz:8000",
+      "http://tadeasfort.cz:8000",
+      "http://localhost:3000", //standard react port
+      "https://localhost:3000",
+      "http://193.86.152.148:8000", //domaci ajpina
+      "https://193.86.152.148:8000",
+      "http://meek-rugelach-a2a7f4.netlify.app",
+      "https://meek-rugelach-a2a7f4.netlify.app",
+    ],
+  })
+);
 app.use(express.json()); // parse JSON bodies
 
 // Connect to MongoDB
@@ -41,6 +60,7 @@ app.get("/vote/:slug", async (req, res) => {
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
+    console.log(err);
   }
 });
 
@@ -73,6 +93,7 @@ app.post("/vote/:slug/:vote", async (req, res) => {
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
+    console.log(err);
   }
 });
 
