@@ -41,19 +41,53 @@ const blogSchema = new mongoose.Schema({
 
 const Blog = mongoose.model("Blog", blogSchema, "likes");
 
+const voteSchema = new mongoose.Schema({
+  postId: { type: mongoose.Schema.Types.ObjectId, ref: "Blog" },
+  identifier: { type: String, required: true },
+  voteType: { type: String, enum: ["like", "dislike"], required: true },
+});
+
+const Vote = mongoose.model("Vote", voteSchema);
+
 app.get("/vote/:slug", async (req, res) => {
   try {
+    let identifier = req.ip || req.cookies.userIdentifier;
     let post = await Blog.findOne({ slug: req.params.slug });
+    let userVoted = false;
 
     if (!post) {
-      return res.json({ likes: 0, dislikes: 0 });
+      return res.json({ likes: 0, dislikes: 0, userVoted });
     }
 
-    res.json(post);
+    if (post.identifiers.includes(identifier)) {
+      userVoted = true;
+    }
+
+    res.json({ ...post.toObject(), userVoted });
     console.log("Vote data retrieved"); // Log successful vote data retrieval
   } catch (err) {
     res.status(500).json({ message: err.message });
     console.error("Vote data retrieval failed:", err.message); // Log error for vote data retrieval
+  }
+});
+
+app.get("/vote/:slug/userVoted", async (req, res) => {
+  try {
+    let identifier = req.ip || req.cookies.userIdentifier;
+
+    if (!identifier) {
+      return res.json({ userVoted: false });
+    }
+
+    let post = await Blog.findOne({
+      slug: req.params.slug,
+      identifiers: identifier,
+    });
+
+    res.json({ userVoted: !!post });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+    console.error("Failed to check if user voted:", err.message);
   }
 });
 
@@ -66,41 +100,37 @@ app.post("/vote/:slug/:vote", async (req, res) => {
       console.log("No IP, generated identifier: " + identifier);
     }
 
-    let post = await Blog.findOne({
-      slug: req.params.slug,
-      identifiers: identifier,
-    });
+    let post = await Blog.findOne({ slug: req.params.slug });
 
-    if (post) {
+    let vote = await Vote.findOne({ postId: post._id, identifier });
+
+    if (vote) {
       return res.status(403).json({ message: "You've already voted" });
       console.warn("Multiple voting attempt"); // Log warning for multiple voting attempt
     }
 
-    let update;
     if (req.params.vote === "like") {
-      update = { $inc: { likes: 1 }, $push: { identifiers: identifier } };
+      await Blog.findOneAndUpdate(
+        { slug: req.params.slug },
+        { $inc: { likes: 1 } }
+      );
     } else if (req.params.vote === "dislike") {
-      update = { $inc: { dislikes: 1 }, $push: { identifiers: identifier } };
+      await Blog.findOneAndUpdate(
+        { slug: req.params.slug },
+        { $inc: { dislikes: 1 } }
+      );
     } else {
       return res.status(400).json({ message: "Invalid vote" });
       console.error("Invalid vote"); // Log error for invalid vote
     }
 
-    if (!post) {
-      post = new Blog({
-        slug: req.params.slug,
-        likes: req.params.vote === "like" ? 1 : 0,
-        dislikes: req.params.vote === "dislike" ? 1 : 0,
-        identifiers: [identifier],
-      });
-      await post.save();
-      console.log("New vote"); // Log successful new vote
-    } else {
-      post = await Blog.findOneAndUpdate({ slug: req.params.slug }, update, {
-        new: true,
-      });
-      console.log("Update vote"); // Log successful vote update
-    }
+    vote = new Vote({
+      postId: post._id,
+      identifier,
+      voteType: req.params.vote,
+    });
+    await vote.save();
+    console.log("New vote"); // Log successful new vote
 
     res.cookie("userIdentifier", identifier, {
       maxAge: 900000,
@@ -109,7 +139,7 @@ app.post("/vote/:slug/:vote", async (req, res) => {
       secure: true,
     });
 
-    res.json(post);
+    res.json({ likes: post.likes, dislikes: post.dislikes });
     console.log("Vote success"); // Log successful vote response
   } catch (err) {
     res.status(500).json({ message: err.message });
