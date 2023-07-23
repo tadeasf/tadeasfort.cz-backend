@@ -52,6 +52,7 @@ const blogSchema = new mongoose.Schema({
   slug: String, // unique post identifier
   likes: { type: Number, default: 0 },
   dislikes: { type: Number, default: 0 },
+  voters: [String], // Add this line to store IP addresses
 });
 
 // Define the Model
@@ -77,43 +78,42 @@ app.get("/vote/:slug", async (req, res) => {
 app.post("/vote/:slug/:vote", async (req, res) => {
   try {
     let post = await Blog.findOne({ slug: req.params.slug });
-    let update;
+    const voterIP = req.ip; // Always retrieve the IP address of the voter
 
-    if (req.body.action === "new") {
-      if (req.params.vote === "like") {
-        update = { $inc: { likes: 1 }, $push: { voters: voterIP } };
-      } else {
-        update = { $inc: { dislikes: 1 }, $push: { voters: voterIP } };
-      }
-    } else if (req.body.action === "switch") {
-      if (req.params.vote === "like") {
-        update = { $inc: { likes: 1, dislikes: -1 } };
-      } else {
-        update = { $inc: { likes: -1, dislikes: 1 } };
-      }
-    }
-
-    if (req.params.vote === "like") {
-      update = { $inc: { likes: 1 } };
-    } else if (req.params.vote === "dislike") {
-      update = { $inc: { dislikes: 1 } };
-    } else {
-      return res.status(400).json({ message: "Invalid vote" });
-    }
-
-    // If post was not found create a new one, otherwise update the existing one
     if (!post) {
       post = new Blog({
         slug: req.params.slug,
         likes: req.params.vote === "like" ? 1 : 0,
         dislikes: req.params.vote === "dislike" ? 1 : 0,
+        voters: [voterIP], // Store voterIP
       });
 
       // Save the new post
       await post.save();
     } else {
-      await Blog.updateOne({ slug: req.params.slug }, update);
-      post = await Blog.findOne({ slug: req.params.slug }); // find again after update
+      if (post.voters.includes(voterIP)) {
+        if (req.params.vote === "like") {
+          if (post.dislikes > 0) {
+            post.dislikes -= 1;
+          }
+          post.likes += 1;
+        } else if (req.params.vote === "dislike") {
+          if (post.likes > 0) {
+            post.likes -= 1;
+          }
+          post.dislikes += 1;
+        }
+      } else {
+        if (req.params.vote === "like") {
+          post.likes += 1;
+        } else if (req.params.vote === "dislike") {
+          post.dislikes += 1;
+        }
+        post.voters.push(voterIP);
+      }
+
+      // Save the updated post
+      await post.save();
     }
 
     res.json(post);
