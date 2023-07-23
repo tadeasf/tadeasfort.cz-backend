@@ -8,7 +8,11 @@ const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "https:/tadeasfort.cz",
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
