@@ -70,7 +70,6 @@ app.post("/vote/:slug/:vote", async (req, res) => {
       post = await Blog.findOne({ slug: req.params.slug }); // find again after update
     }
 
-    await post.save();
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
