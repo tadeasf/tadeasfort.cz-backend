@@ -22,6 +22,7 @@ db.once("open", () => console.log("Connected to Database"));
 // Define schema for your documents
 const blogSchema = new mongoose.Schema({
   id: String,
+  slug: String, // new field
   likes: { type: Number, default: 0 },
   dislikes: { type: Number, default: 0 },
   voters: { type: Array, default: [] },
@@ -31,29 +32,41 @@ const blogSchema = new mongoose.Schema({
 const Blog = mongoose.model("Blog", blogSchema, "likes");
 
 // Handle like/dislike requests
-app.post("/vote/:id/:vote", async (req, res) => {
+app.post("/vote/:slug/:vote", async (req, res) => {
   try {
-    const post = await Blog.findOne({ id: req.params.id });
     const ip = req.ip;
 
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
-    }
+    // First find the post
+    let post = await Blog.findOne({ slug: req.params.slug });
 
-    if (post.voters.includes(ip)) {
+    if (post && post.voters.includes(ip)) {
       return res.status(403).json({ message: "You've already voted" });
     }
 
+    let update;
+
     if (req.params.vote === "like") {
-      post.likes += 1;
+      update = { $inc: { likes: 1 }, $push: { voters: ip } };
     } else if (req.params.vote === "dislike") {
-      post.dislikes += 1;
+      update = { $inc: { dislikes: 1 }, $push: { voters: ip } };
     } else {
       return res.status(400).json({ message: "Invalid vote" });
     }
 
-    post.voters.push(ip);
-    await post.save();
+    // If post was not found create a new one, otherwise update the existing one
+    if (!post) {
+      post = new Blog({
+        slug: req.params.slug,
+        likes: req.params.vote === "like" ? 1 : 0,
+        dislikes: req.params.vote === "dislike" ? 1 : 0,
+        voters: [ip],
+      });
+      await post.save();
+    } else {
+      post = await Blog.findOneAndUpdate({ slug: req.params.slug }, update, {
+        new: true,
+      });
+    }
 
     res.json(post);
   } catch (err) {
