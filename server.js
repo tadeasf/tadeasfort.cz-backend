@@ -79,6 +79,20 @@ app.post("/vote/:slug/:vote", async (req, res) => {
     let post = await Blog.findOne({ slug: req.params.slug });
     let update;
 
+    if (req.body.action === "new") {
+      if (req.params.vote === "like") {
+        update = { $inc: { likes: 1 }, $push: { voters: voterIP } };
+      } else {
+        update = { $inc: { dislikes: 1 }, $push: { voters: voterIP } };
+      }
+    } else if (req.body.action === "switch") {
+      if (req.params.vote === "like") {
+        update = { $inc: { likes: 1, dislikes: -1 } };
+      } else {
+        update = { $inc: { likes: -1, dislikes: 1 } };
+      }
+    }
+
     if (req.params.vote === "like") {
       update = { $inc: { likes: 1 } };
     } else if (req.params.vote === "dislike") {
