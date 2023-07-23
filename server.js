@@ -26,7 +26,16 @@ app.use(
     ],
   })
 );
+
 app.use(express.json()); // parse JSON bodies
+
+app.use(function (req, res, next) {
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src https://*; child-src 'none';"
+  );
+  return next();
+});
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URL, {
@@ -85,6 +94,9 @@ app.post("/vote/:slug/:vote", async (req, res) => {
         likes: req.params.vote === "like" ? 1 : 0,
         dislikes: req.params.vote === "dislike" ? 1 : 0,
       });
+
+      // Save the new post
+      await post.save();
     } else {
       await Blog.updateOne({ slug: req.params.slug }, update);
       post = await Blog.findOne({ slug: req.params.slug }); // find again after update
