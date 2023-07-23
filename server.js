@@ -21,11 +21,9 @@ db.once("open", () => console.log("Connected to Database"));
 
 // Define schema for your documents
 const blogSchema = new mongoose.Schema({
-  id: String,
-  slug: String, // new field
+  slug: String, // unique post identifier
   likes: { type: Number, default: 0 },
   dislikes: { type: Number, default: 0 },
-  voters: { type: Array, default: [] },
 });
 
 // Define the Model
@@ -49,21 +47,13 @@ app.get("/vote/:slug", async (req, res) => {
 // Handle like/dislike requests
 app.post("/vote/:slug/:vote", async (req, res) => {
   try {
-    const ip = req.ip;
-
-    // First find the post
     let post = await Blog.findOne({ slug: req.params.slug });
-
-    if (post && post.voters.includes(ip)) {
-      return res.status(403).json({ message: "You've already voted" });
-    }
-
     let update;
 
     if (req.params.vote === "like") {
-      update = { $inc: { likes: 1 }, $push: { voters: ip } };
+      update = { $inc: { likes: 1 } };
     } else if (req.params.vote === "dislike") {
-      update = { $inc: { dislikes: 1 }, $push: { voters: ip } };
+      update = { $inc: { dislikes: 1 } };
     } else {
       return res.status(400).json({ message: "Invalid vote" });
     }
@@ -74,15 +64,12 @@ app.post("/vote/:slug/:vote", async (req, res) => {
         slug: req.params.slug,
         likes: req.params.vote === "like" ? 1 : 0,
         dislikes: req.params.vote === "dislike" ? 1 : 0,
-        voters: [ip],
       });
-      await post.save();
     } else {
-      post = await Blog.findOneAndUpdate({ slug: req.params.slug }, update, {
-        new: true,
-      });
+      await Blog.updateOne({ slug: req.params.slug }, update);
     }
 
+    await post.save();
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: err.message });
