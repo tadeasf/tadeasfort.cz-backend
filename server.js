@@ -49,7 +49,7 @@ const voteSchema = new mongoose.Schema({
 
 const Vote = mongoose.model("Vote", voteSchema);
 
-app.get("/vote/:slug", async (req, res) => {
+app.get("/api/vote/:slug", async (req, res) => {
   try {
     let identifier = req.ip || req.cookies.userIdentifier;
     let post = await Blog.findOne({ slug: req.params.slug });
@@ -71,7 +71,7 @@ app.get("/vote/:slug", async (req, res) => {
   }
 });
 
-app.get("/vote/:slug/userVoted", async (req, res) => {
+app.get("/api/vote/:slug/userVoted", async (req, res) => {
   try {
     let identifier = req.ip || req.cookies.userIdentifier;
 
@@ -91,7 +91,7 @@ app.get("/vote/:slug/userVoted", async (req, res) => {
   }
 });
 
-app.post("/vote/:slug/:vote", async (req, res) => {
+app.post("/api/vote/:slug/:vote", async (req, res) => {
   try {
     let identifier = req.ip || req.cookies.userIdentifier;
 
@@ -102,6 +102,12 @@ app.post("/vote/:slug/:vote", async (req, res) => {
 
     let post = await Blog.findOne({ slug: req.params.slug });
 
+    // Check if post exists
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+      console.error("Post not found"); // Log error for post not found
+    }
+
     let vote = await Vote.findOne({ postId: post._id, identifier });
 
     if (vote) {
@@ -110,14 +116,16 @@ app.post("/vote/:slug/:vote", async (req, res) => {
     }
 
     if (req.params.vote === "like") {
-      await Blog.findOneAndUpdate(
+      post = await Blog.findOneAndUpdate(
         { slug: req.params.slug },
-        { $inc: { likes: 1 } }
+        { $inc: { likes: 1 } },
+        { new: true } // This option returns the updated document
       );
     } else if (req.params.vote === "dislike") {
-      await Blog.findOneAndUpdate(
+      post = await Blog.findOneAndUpdate(
         { slug: req.params.slug },
-        { $inc: { dislikes: 1 } }
+        { $inc: { dislikes: 1 } },
+        { new: true } // This option returns the updated document
       );
     } else {
       return res.status(400).json({ message: "Invalid vote" });
